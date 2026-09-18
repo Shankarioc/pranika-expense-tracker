@@ -209,8 +209,19 @@
   #pranikaLogin input:focus{border-color:var(--accent);}
   #pranikaLogin button{width:100%; padding:14px; margin-top:10px; border:0; border-radius:12px; background:var(--accent); color:#fff; font-size:16px; font-weight:600; cursor:pointer;}
   #pranikaLogin .error{color:var(--bad); min-height:20px; margin-top:8px; font-size:13px;}
-  #biometricBtn{display:none;background:#111827;color:#fff;margin-top:10px;}
-  #biometricBtn.show{display:block;}
+  #pranikaLogin .bio-btn{
+    background:#111827; color:#fff; display:none; margin-top:10px;
+  }
+  #pranikaLogin .enable-bio-btn{
+    background:#eef6ff; color:var(--accent); border:1px solid #cfe3ff;
+    display:none; margin-top:10px;
+  }
+  #pranikaLogin .security-note{
+    margin-top:14px; font-size:11px; line-height:1.45; color:#64748b;
+  }
+  #pranikaLogin .bio-status{
+    min-height:18px; margin-top:7px; font-size:12px; color:#475569;
+  }
 
 </style>
 </head>
@@ -223,10 +234,12 @@
     <p class="welcome">Welcome to your expense tracker</p>
     <input id="pranikaName" type="text" value="Pranika" placeholder="Name" autocomplete="username">
     <input id="pranikaPin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN" autocomplete="current-password">
-    <button id="pranikaLoginBtn">Login</button>
-    <button id="biometricBtn" type="button">🔐 Use fingerprint / Face ID</button>
-    <button id="setupBiometricBtn" type="button" style="background:#34C759;display:none;">Enable fingerprint / Face ID</button>
+    <button id="pranikaLoginBtn">Login with PIN</button>
+    <button id="pranikaBioBtn" class="bio-btn">🔐 Fingerprint / Face ID</button>
+    <button id="pranikaEnableBioBtn" class="enable-bio-btn">Enable Fingerprint / Face ID</button>
     <div id="pranikaLoginError" class="error"></div>
+    <div id="pranikaBioStatus" class="bio-status"></div>
+    <div class="security-note">Biometric login uses your device's secure WebAuthn/biometric system. Your fingerprint is never stored in this app.</div>
   </div>
 </div>
 
@@ -378,7 +391,11 @@ let nextId = 34;
 let activeFilter = 'all';
 
 /* ---------------- local persistence + Google Sheet sync ---------------- */
-const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjzFoC569TBpdeiXhZJeZxfiFVb3yMCtcSwUYzD1IjaTPiEy4ZsQ1Cvm6yfFS1ia71FA/exec';
+const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTgHrglYlstBhTyy1Z-oNKAVhJoFPe_h5qNPTR7wpi5IkiPd3bIPh-Ct_HTHvzD1bXIQ/exec';
+// Backend: Google Apps Script Web App.
+// IMPORTANT: open this HTML in Chrome/Edge (or host it on HTTPS), not only in
+// ChatGPT's HTML preview, because the preview can block external network calls.
+
 const LOCAL_KEY = 'prani_expenses_v1';
 
 function setSyncStatus(text, good=false){
@@ -401,35 +418,81 @@ function loadLocal(){
 }
 function pushExpenseToGoogle(expense){
   setSyncStatus('Saving…');
-  const body = JSON.stringify({action:'saveExpense', expense:{
-    id:String(expense.id), date:expense.date, description:expense.name,
-    category:expense.cat, amount:Number(expense.amount)
-  }});
-  fetch(GOOGLE_APPS_SCRIPT_URL, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body})
-    .then(() => setSyncStatus('Saved', true))
-    .catch(() => setSyncStatus('Local only — sync failed'));
+  const body = JSON.stringify({
+    action:'addExpense',
+    id:String(expense.id),
+    date:expense.date,
+    description:expense.name,
+    category:expense.cat,
+    amount:Number(expense.amount)
+  });
+  fetch(GOOGLE_APPS_SCRIPT_URL, {
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body
+  })
+  .then(() => setSyncStatus('Sent to Google Sheet', true))
+  .catch(() => setSyncStatus('Local backup saved — Sheet sync failed'));
 }
+
 function deleteExpenseFromGoogle(id){
   setSyncStatus('Deleting…');
   const body = JSON.stringify({action:'deleteExpense', id:String(id)});
-  fetch(GOOGLE_APPS_SCRIPT_URL, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body})
-    .then(() => setSyncStatus('Updated', true))
-    .catch(() => setSyncStatus('Local only — sync failed'));
+  fetch(GOOGLE_APPS_SCRIPT_URL, {
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body
+  })
+  .then(() => setSyncStatus('Delete request sent', true))
+  .catch(() => setSyncStatus('Deleted locally — Sheet sync failed'));
 }
+
 function syncFromGoogle(){
-  setSyncStatus('Uploading all expenses…');
-  const payload = { action:'syncAll', expenses: expenses.map(e => ({
-    id:String(e.id), date:e.date, description:e.name, category:e.cat, amount:Number(e.amount||0)
-  })) };
-  fetch(GOOGLE_APPS_SCRIPT_URL, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)})
-    .then(() => { saveLocal(); setSyncStatus('All expenses uploaded', true); })
-    .catch(() => setSyncStatus('Local only — sync failed'));
+  setSyncStatus('Checking Google Sheet…');
+  fetch(GOOGLE_APPS_SCRIPT_URL + '?action=getExpenses', {method:'GET'})
+    .then(r => r.json())
+    .then(data => {
+      if(!data || !data.success || !Array.isArray(data.expenses)) throw new Error('Invalid response');
+      const remote = data.expenses.map(e => ({
+        id:Number(e.id),
+        name:String(e.description || ''),
+        cat:String(e.category || 'other'),
+        date:normalizeAppDate(e.date),
+        amount:Number(e.amount) || 0
+      })).filter(e => e.id && e.name);
+      if(remote.length){
+        expenses = remote;
+        nextId = Math.max(0, ...expenses.map(e => Number(e.id)||0)) + 1;
+        saveLocal();
+        render();
+      }
+      setSyncStatus('Synced from Google Sheet', true);
+    })
+    .catch(() => setSyncStatus('Could not read Sheet — local data kept'));
 }
+
+function normalizeAppDate(value){
+  if(!value) return '';
+  const v=String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  let m=v.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if(m) return m[3]+'-'+m[2]+'-'+m[1];
+  const d=new Date(v);
+  if(isNaN(d.getTime())) return v;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 document.getElementById('syncBtn').onclick = syncFromGoogle;
+
+// Keep the app usable even when Google access is blocked by a preview/browser.
+window.addEventListener('online', () => setSyncStatus('Online — tap Sync to update'));
+window.addEventListener('offline', () => setSyncStatus('Offline — local backup active'));
 
 const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN', {minimumFractionDigits:0});
 const fmt2 = n => '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
-function dateLabel(iso){ const d = new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-GB', {day:'numeric', month:'short'}); }
+function dateLabel(iso){ const d = new Date(normalizeAppDate(iso)+'T00:00:00'); if(isNaN(d.getTime())) return iso || ''; return d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); }
 document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
 
 function computeTotals(){
@@ -501,11 +564,33 @@ function buildExpenseRow(e){
     <div class="exp-mid"><div class="exp-name">${e.name}</div><div class="exp-date">${dateLabel(e.date)} · ${c.label}</div></div>
     <div class="exp-amt">${fmt(e.amount)}</div>
     <button class="exp-menu" data-id="${e.id}">⋯</button>`;
-  row.querySelector('.exp-menu').onclick = (ev) => {
+  row.querySelector('.exp-menu').onclick = async (ev) => {
     ev.stopPropagation();
-    if(confirm('Delete this expense?')){
-      expenses = expenses.filter(x => String(x.id) !== String(e.id));
-      saveLocal(); render(); deleteExpenseFromGoogle(e.id);
+    const choice = prompt('Type EDIT to edit this expense, or DELETE to delete it:', 'EDIT');
+    if(!choice) return;
+    if(choice.trim().toUpperCase() === 'DELETE'){
+      if(confirm('Delete this expense?')){
+        expenses = expenses.filter(x => String(x.id) !== String(e.id));
+        saveLocal(); render(); deleteExpenseFromGoogle(e.id);
+      }
+      return;
+    }
+    if(choice.trim().toUpperCase() === 'EDIT'){
+      const name = prompt('Description:', e.name);
+      if(name===null) return;
+      const amountText = prompt('Amount:', String(e.amount));
+      if(amountText===null) return;
+      const amount = Number(amountText);
+      const dateText = prompt('Date (DD-MM-YYYY or YYYY-MM-DD):', normalizeAppDate(e.date));
+      if(dateText===null || !name.trim() || !isFinite(amount) || amount<=0) return alert('Invalid details.');
+      const updated = {id:e.id,name:name.trim(),cat:e.cat,date:normalizeAppDate(dateText),amount};
+      const idx = expenses.findIndex(x => String(x.id)===String(e.id));
+      if(idx<0) return;
+      expenses[idx]=updated; saveLocal(); render();
+      setSyncStatus('Updating…');
+      fetch(GOOGLE_APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'updateExpense',id:String(updated.id),date:updated.date,description:updated.name,category:updated.cat,amount:updated.amount})})
+        .then(()=>setSyncStatus('Updated in Google Sheet',true))
+        .catch(()=>setSyncStatus('Updated locally — Sheet sync failed'));
     }
   };
   return row;
@@ -629,65 +714,194 @@ document.getElementById('saveBtn').onclick = () => {
   pushExpenseToGoogle(newExpense);
 };
 
-/* ---------------- login + real WebAuthn biometric ---------------- */
+/* ---------------- secure biometric login ---------------- */
 (function(){
   const LOGIN_NAME = "Pranika";
   const LOGIN_PIN = "2008";
+
   const login = document.getElementById("pranikaLogin");
   const nameInput = document.getElementById("pranikaName");
   const pinInput = document.getElementById("pranikaPin");
   const btn = document.getElementById("pranikaLoginBtn");
-  const bioBtn = document.getElementById("biometricBtn");
-  const setupBtn = document.getElementById("setupBiometricBtn");
+  const bioBtn = document.getElementById("pranikaBioBtn");
+  const enableBioBtn = document.getElementById("pranikaEnableBioBtn");
   const error = document.getElementById("pranikaLoginError");
-  const CRED_KEY = "prani_webauthn_credential";
+  const bioStatus = document.getElementById("pranikaBioStatus");
 
-  const supported = window.isSecureContext && !!window.PublicKeyCredential && !!navigator.credentials;
-  function b64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  function bytes(s){ const pad='='.repeat((4-s.length%4)%4); const raw=atob(s.replace(/-/g,'+').replace(/_/g,'/')+pad); return Uint8Array.from(raw,c=>c.charCodeAt(0)); }
-  function randomBytes(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
-  function stored(){ try{return JSON.parse(localStorage.getItem(CRED_KEY)||'null')}catch(e){return null} }
-  function unlock(){ sessionStorage.setItem("prani_logged_in","1"); login.style.display="none"; error.textContent=""; }
-  function validPin(){ return nameInput.value.trim().toLowerCase()===LOGIN_NAME.toLowerCase() && pinInput.value.trim()===LOGIN_PIN; }
+  const BIO_KEY = "prani_webauthn_credential";
+  const isSecure = window.isSecureContext;
+  const supportsWebAuthn = !!(window.PublicKeyCredential && navigator.credentials);
 
-  async function registerBiometric(){
-    if(!supported){ error.textContent="Fingerprint/Face ID is not supported in this browser."; return; }
-    try{
-      const userId=randomBytes(16);
-      const cred=await navigator.credentials.create({publicKey:{
-        challenge:randomBytes(32),
-        rp:{name:"Prani Expense Tracker",id:location.hostname},
-        user:{id:userId,name:LOGIN_NAME,displayName:LOGIN_NAME},
-        pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
-        authenticatorSelection:{authenticatorAttachment:"platform",residentKey:"preferred",userVerification:"required"},
-        timeout:60000,
-        attestation:"none"
-      }});
-      if(!cred) throw new Error("No credential created");
-      localStorage.setItem(CRED_KEY,JSON.stringify({id:b64(cred.rawId)}));
-      setupBtn.style.display="none"; bioBtn.classList.add("show");
-      error.textContent="Fingerprint / Face ID enabled. Tap the button to test it.";
-    }catch(e){ error.textContent="Biometric setup cancelled or unavailable on this device."; }
+  function setError(msg){
+    error.textContent = msg || "";
   }
+
+  function b64urlEncode(buffer){
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  }
+
+  function b64urlDecode(str){
+    str = str.replace(/-/g,"+").replace(/_/g,"/");
+    while(str.length % 4) str += "=";
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function randomBytes(n){
+    const a = new Uint8Array(n);
+    crypto.getRandomValues(a);
+    return a;
+  }
+
+  function hasBiometric(){
+    return !!localStorage.getItem(BIO_KEY);
+  }
+
+  function updateBioUI(){
+    if(supportsWebAuthn && isSecure){
+      bioBtn.style.display = hasBiometric() ? "block" : "none";
+      enableBioBtn.style.display = hasBiometric() ? "none" : "block";
+      bioStatus.textContent = hasBiometric()
+        ? "Biometric login is enabled on this device."
+        : "Login with PIN once, then enable biometric login.";
+    } else {
+      bioBtn.style.display = "none";
+      enableBioBtn.style.display = "none";
+      bioStatus.textContent = location.protocol === "file:"
+        ? "Fingerprint requires HTTPS. Open the hosted app (for example GitHub Pages)."
+        : "This browser/device does not support WebAuthn biometrics.";
+    }
+  }
+
+  function unlock(){
+    const name = (nameInput.value || "").trim();
+    const pin = (pinInput.value || "").trim();
+    if(name.toLowerCase() === LOGIN_NAME.toLowerCase() && pin === LOGIN_PIN){
+      sessionStorage.setItem("prani_logged_in","1");
+      login.style.display = "none";
+      setError("");
+    } else {
+      setError("Incorrect name or PIN.");
+    }
+  }
+
+  async function enableBiometric(){
+    setError("");
+    if(!supportsWebAuthn || !isSecure){
+      setError("Fingerprint needs HTTPS and a supported browser/device.");
+      return;
+    }
+
+    try{
+      const userId = randomBytes(16);
+      const challenge = randomBytes(32);
+
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "Prani Expense Tracker", id: location.hostname },
+          user: {
+            id: userId,
+            name: "pranika@prani-expense-tracker",
+            displayName: "Pranika"
+          },
+          pubKeyCredParams: [
+            {type:"public-key", alg:-7},
+            {type:"public-key", alg:-257}
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            residentKey: "preferred",
+            userVerification: "required"
+          },
+          timeout: 60000,
+          attestation: "none"
+        }
+      });
+
+      if(!credential) throw new Error("No biometric credential was created.");
+
+      localStorage.setItem(BIO_KEY, JSON.stringify({
+        id: b64urlEncode(credential.rawId),
+        createdAt: new Date().toISOString(),
+        rpId: location.hostname
+      }));
+
+      bioStatus.textContent = "Fingerprint / Face ID enabled successfully.";
+      enableBioBtn.style.display = "none";
+      bioBtn.style.display = "block";
+    }catch(e){
+      console.error("Biometric registration:", e);
+      setError(
+        e && e.name === "NotAllowedError"
+          ? "Biometric setup was cancelled or not completed."
+          : "Could not enable biometric login on this device."
+      );
+    }
+  }
+
   async function biometricLogin(){
-    const saved=stored(); if(!saved){ setupBtn.style.display="block"; error.textContent="First login with PIN, then enable fingerprint / Face ID."; return; }
-    try{
-      const assertion=await navigator.credentials.get({publicKey:{
-        challenge:randomBytes(32),
-        allowCredentials:[{type:"public-key",id:bytes(saved.id)}],
-        userVerification:"required",timeout:60000
-      }});
-      if(assertion) unlock();
-    }catch(e){ error.textContent="Fingerprint / Face ID verification failed or was cancelled."; }
-  }
-  btn.addEventListener("click",()=>{ if(validPin()){unlock(); if(supported&&!stored()) setupBtn.style.display="block";} else error.textContent="Incorrect name or PIN."; });
-  pinInput.addEventListener("keydown",e=>{if(e.key==="Enter")btn.click();});
-  setupBtn.addEventListener("click",registerBiometric);
-  bioBtn.addEventListener("click",biometricLogin);
-  if(stored()&&supported) bioBtn.classList.add("show");
-  if(sessionStorage.getItem("prani_logged_in")==="1") login.style.display="none";
-})();
+    setError("");
+    if(!supportsWebAuthn || !isSecure){
+      setError("Fingerprint needs HTTPS and a supported browser/device.");
+      return;
+    }
 
+    const saved = localStorage.getItem(BIO_KEY);
+    if(!saved){
+      setError("Biometric login is not enabled yet. Login with PIN first.");
+      return;
+    }
+
+    try{
+      const data = JSON.parse(saved);
+      const challenge = randomBytes(32);
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          rpId: location.hostname,
+          allowCredentials: [{
+            type: "public-key",
+            id: b64urlDecode(data.id),
+            transports: ["internal"]
+          }],
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+
+      if(!assertion) throw new Error("Biometric authentication failed.");
+
+      sessionStorage.setItem("prani_logged_in","1");
+      login.style.display = "none";
+      setError("");
+    }catch(e){
+      console.error("Biometric authentication:", e);
+      setError(
+        e && e.name === "NotAllowedError"
+          ? "Fingerprint / Face ID was cancelled or did not match."
+          : "Biometric login failed. Use your PIN instead."
+      );
+    }
+  }
+
+  btn.addEventListener("click", unlock);
+  pinInput.addEventListener("keydown", e => { if(e.key === "Enter") unlock(); });
+  bioBtn.addEventListener("click", biometricLogin);
+  enableBioBtn.addEventListener("click", enableBiometric);
+
+  if(sessionStorage.getItem("prani_logged_in") === "1"){
+    login.style.display = "none";
+  } else {
+    updateBioUI();
+  }
+})();
 /* ---------------- PWA service worker ---------------- */
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', () => {
@@ -700,6 +914,7 @@ loadLocal();
 renderTabs();
 render();
 setSyncStatus('Ready');
+// Load the Google Sheet copy after the local app has rendered.
 </script>
 </body>
 </html>
