@@ -1,0 +1,11 @@
+{
+  "name": "Pranika Expense Tracker",
+  "short_name": "Pranika",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "orientation": "portrait",
+  "description": "Pranika Expense Tracker with Google Sheets and Drive backup."
+}
