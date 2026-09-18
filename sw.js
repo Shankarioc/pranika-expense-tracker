@@ -1,4 +1,4 @@
-const CACHE_NAME = "pranika-expense-tracker-v3";
+const CACHE_NAME = "pranika-expense-tracker-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
