@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#007AFF">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -209,102 +209,8 @@
   #pranikaLogin input:focus{border-color:var(--accent);}
   #pranikaLogin button{width:100%; padding:14px; margin-top:10px; border:0; border-radius:12px; background:var(--accent); color:#fff; font-size:16px; font-weight:600; cursor:pointer;}
   #pranikaLogin .error{color:var(--bad); min-height:20px; margin-top:8px; font-size:13px;}
-
-/* ---------- enhancement layer: preserves existing UI ---------- */
-.search-filter-bar{display:flex;gap:8px;margin:10px 0 12px;flex-wrap:wrap}
-.search-filter-bar input,.search-filter-bar select{flex:1;min-width:120px;padding:10px 12px;border-radius:10px;border:1px solid var(--panel-border);background:var(--panel-2);font:inherit;font-size:12px}
-.edit-btn{border:0;background:rgba(0,122,255,.10);color:var(--accent);border-radius:7px;padding:5px 7px;font-size:11px;font-weight:700}
-.sync-pill{font-size:10px;padding:4px 8px;border-radius:10px;background:rgba(52,199,89,.10);color:#149a76;margin-left:6px}
-.security-note{font-size:11px;color:var(--text-low);line-height:1.45;margin-top:10px}
-
-
-/* Reports: use more of the available mobile width */
-#screen-reports .report-card{
-  margin-left:-8px;
-  margin-right:-8px;
-}
-#screen-reports .screen-header{
-  margin-left:-2px;
-  margin-right:-2px;
-}
-
-
-/* Reports: substantially reduce horizontal whitespace */
-#screen-reports .report-card{
-  margin-left:-15px !important;
-  margin-right:-15px !important;
-  width:calc(100% + 30px) !important;
-}
-#screen-reports .screen-header{
-  margin-left:0 !important;
-  margin-right:0 !important;
-}
-
-
-/* ---------- Reports layout: Image 2 compact mobile style ---------- */
-#screen-reports{
-  padding-bottom:8px;
-}
-#screen-reports .screen-header{
-  padding-top:calc(12px + env(safe-area-inset-top));
-  padding-bottom:8px;
-}
-#screen-reports .screen-header h2{
-  font-size:21px;
-}
-#screen-reports .report-card{
-  margin-left:-15px !important;
-  margin-right:-15px !important;
-  width:calc(100% + 30px) !important;
-  border-radius:18px;
-  padding:16px 18px;
-  margin-bottom:12px;
-}
-#screen-reports .report-card h3{
-  font-size:15px;
-  margin-bottom:10px;
-}
-#screen-reports .donut-wrap{
-  gap:10px;
-  align-items:center;
-}
-#screen-reports #donutSvg{
-  width:108px;
-  height:108px;
-  flex:0 0 108px;
-}
-#screen-reports .legend{
-  gap:7px;
-}
-#screen-reports .legend-row{
-  gap:7px;
-  font-size:11px;
-  min-height:17px;
-}
-#screen-reports .legend-name{
-  white-space:nowrap;
-}
-#screen-reports .legend-amt{
-  font-size:11px;
-}
-#screen-reports .legend-pct{
-  min-width:25px;
-  font-size:10px;
-}
-#screen-reports .trend-bars{
-  gap:8px;
-  height:128px;
-  margin-top:16px;
-}
-#screen-reports .trend-callout{
-  font-size:10px;
-}
-#screen-reports .trend-label{
-  font-size:10px;
-}
-#screen-reports .trend-bar{
-  width:62%;
-}
+  #biometricBtn{display:none;background:#111827;color:#fff;margin-top:10px;}
+  #biometricBtn.show{display:block;}
 
 </style>
 </head>
@@ -318,9 +224,8 @@
     <input id="pranikaName" type="text" value="Pranika" placeholder="Name" autocomplete="username">
     <input id="pranikaPin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN" autocomplete="current-password">
     <button id="pranikaLoginBtn">Login</button>
-    <button id="biometricBtn" type="button" style="display:none;background:rgba(0,122,255,.10);color:#007AFF;margin-top:8px;">Use Face ID / Fingerprint</button>
-    <div class="security-note">Biometric login uses your device/browser security. Your fingerprint or face data is never stored by this app.</div>
-
+    <button id="biometricBtn" type="button">🔐 Use fingerprint / Face ID</button>
+    <button id="setupBiometricBtn" type="button" style="background:#34C759;display:none;">Enable fingerprint / Face ID</button>
     <div id="pranikaLoginError" class="error"></div>
   </div>
 </div>
@@ -362,11 +267,6 @@
         </button>
       </div>
       <div class="sync-status" id="syncStatus">Google Sheet: Ready</div>
-      <div class="search-filter-bar">
-        <input id="expenseSearch" type="search" placeholder="Search expenses…">
-        <select id="monthFilter"><option value="all">All months</option></select>
-      </div>
-
       <div class="chip-scroll" id="tabs"></div>
       <div id="expenseList" style="margin-top:14px;"></div>
     </section>
@@ -600,16 +500,12 @@ function buildExpenseRow(e){
     <div class="exp-ic" style="background:${c.hex};"><svg viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="1.9">${c.icon}</svg></div>
     <div class="exp-mid"><div class="exp-name">${e.name}</div><div class="exp-date">${dateLabel(e.date)} · ${c.label}</div></div>
     <div class="exp-amt">${fmt(e.amount)}</div>
-    <button class="edit-btn" data-edit-id="${e.id}">Edit</button><button class="exp-menu" data-id="${e.id}">⋯</button>`;
-  row.querySelector('.edit-btn').onclick = (ev) => {
-    ev.stopPropagation();
-    openEditModal(e);
-  };
+    <button class="exp-menu" data-id="${e.id}">⋯</button>`;
   row.querySelector('.exp-menu').onclick = (ev) => {
     ev.stopPropagation();
     if(confirm('Delete this expense?')){
       expenses = expenses.filter(x => String(x.id) !== String(e.id));
-      saveLocal(); refreshMonthFilter(); render(); deleteExpenseFromGoogle(e.id);
+      saveLocal(); render(); deleteExpenseFromGoogle(e.id);
     }
   };
   return row;
@@ -627,56 +523,12 @@ function renderTabs(){
     wrap.appendChild(el);
   });
 }
-
-let searchTerm = '';
-let monthFilter = 'all';
-
-function refreshMonthFilter(){
-  const sel = document.getElementById('monthFilter');
-  if(!sel) return;
-  const months = [...new Set(expenses.map(e => e.date.slice(0,7)))].sort().reverse();
-  sel.innerHTML = '<option value="all">All months</option>' + months.map(m=>{
-    const [y,mo]=m.split('-');
-    const d=new Date(Number(y),Number(mo)-1,1);
-    return `<option value="${m}">${d.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</option>`;
-  }).join('');
-  sel.value = monthFilter;
-}
-
-document.getElementById('expenseSearch').addEventListener('input', e=>{
-  searchTerm = e.target.value.trim().toLowerCase();
-  renderList();
-});
-document.getElementById('monthFilter').addEventListener('change', e=>{
-  monthFilter = e.target.value;
-  renderList();
-});
-
-function openEditModal(e){
-  document.querySelector('.sheet h3').textContent='Edit Expense';
-  document.getElementById('fName').value=e.name;
-  document.getElementById('fAmount').value=e.amount;
-  document.getElementById('fDate').value=e.date;
-  catSelect.value=e.cat;
-  overlay.classList.add('open');
-  document.getElementById('saveBtn').textContent='Update Expense';
-  document.getElementById('saveBtn').dataset.editId=String(e.id);
-}
-
-function resetExpenseModal(){
-  document.querySelector('.sheet h3').textContent='Add Expense';
-  document.getElementById('saveBtn').textContent='Save Expense';
-  delete document.getElementById('saveBtn').dataset.editId;
-}
-
 function setFilter(key){ activeFilter = key; renderTabs(); renderList(); }
 
 function renderList(){
   const listEl = document.getElementById('expenseList');
   let items = [...expenses].sort((a,b)=> new Date(b.date)-new Date(a.date));
   if(activeFilter !== 'all') items = items.filter(e => e.cat === activeFilter);
-  if(monthFilter !== 'all') items = items.filter(e => e.date.slice(0,7) === monthFilter);
-  if(searchTerm) items = items.filter(e => `${e.name} ${CATS[e.cat]?.label||''} ${e.date}`.toLowerCase().includes(searchTerm));
   listEl.innerHTML = '';
   if(items.length===0){ listEl.innerHTML = '<div class="empty-row">No expenses in this category yet.</div>'; return; }
   items.forEach(e => listEl.appendChild(buildExpenseRow(e)));
@@ -754,7 +606,6 @@ const overlay = document.getElementById('modalOverlay');
 const catSelect = document.getElementById('fCategory');
 Object.keys(CATS).forEach(k => { const o=document.createElement('option'); o.value=k; o.textContent=CATS[k].label; catSelect.appendChild(o); });
 function openModal(){
-  resetExpenseModal();
   document.getElementById('fName').value='';
   document.getElementById('fAmount').value='';
   document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
@@ -770,28 +621,15 @@ document.getElementById('saveBtn').onclick = () => {
   const date = document.getElementById('fDate').value;
   const cat = catSelect.value;
   if(!name || !amount || amount<=0 || !date){ alert('Please fill in a description, a valid amount, and a date.'); return; }
-
-  const editId = document.getElementById('saveBtn').dataset.editId;
-  if(editId){
-    const idx = expenses.findIndex(x => String(x.id) === String(editId));
-    if(idx >= 0){
-      expenses[idx] = { ...expenses[idx], name, cat, date, amount };
-      saveLocal(); closeModal(); resetExpenseModal(); render();
-      pushExpenseToGoogle(expenses[idx]);
-      return;
-    }
-  }
-
   const newExpense = { id: nextId++, name, cat, date, amount };
   expenses.push(newExpense);
-  refreshMonthFilter();
   saveLocal();
   closeModal();
   render();
   pushExpenseToGoogle(newExpense);
 };
 
-/* ---------------- login gate + biometric unlock ---------------- */
+/* ---------------- login + real WebAuthn biometric ---------------- */
 (function(){
   const LOGIN_NAME = "Pranika";
   const LOGIN_PIN = "2008";
@@ -800,168 +638,65 @@ document.getElementById('saveBtn').onclick = () => {
   const pinInput = document.getElementById("pranikaPin");
   const btn = document.getElementById("pranikaLoginBtn");
   const bioBtn = document.getElementById("biometricBtn");
+  const setupBtn = document.getElementById("setupBiometricBtn");
   const error = document.getElementById("pranikaLoginError");
-
-  const RP_ID = location.hostname;
   const CRED_KEY = "prani_webauthn_credential";
 
-  function b64url(bytes){
-    let s = "";
-    bytes.forEach(b => s += String.fromCharCode(b));
-    return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  }
-  function randomBytes(n){
-    const a = new Uint8Array(n);
-    crypto.getRandomValues(a);
-    return a;
-  }
-  function storedCredential(){
-    try { return JSON.parse(localStorage.getItem(CRED_KEY) || "null"); }
-    catch(e){ return null; }
-  }
-  function biometricSupported(){
-    return !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext);
-  }
+  const supported = window.isSecureContext && !!window.PublicKeyCredential && !!navigator.credentials;
+  function b64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function bytes(s){ const pad='='.repeat((4-s.length%4)%4); const raw=atob(s.replace(/-/g,'+').replace(/_/g,'/')+pad); return Uint8Array.from(raw,c=>c.charCodeAt(0)); }
+  function randomBytes(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function stored(){ try{return JSON.parse(localStorage.getItem(CRED_KEY)||'null')}catch(e){return null} }
+  function unlock(){ sessionStorage.setItem("prani_logged_in","1"); login.style.display="none"; error.textContent=""; }
+  function validPin(){ return nameInput.value.trim().toLowerCase()===LOGIN_NAME.toLowerCase() && pinInput.value.trim()===LOGIN_PIN; }
 
-  function unlock(){
-    const name = (nameInput.value || "").trim();
-    const pin = (pinInput.value || "").trim();
-    if(name.toLowerCase() === LOGIN_NAME.toLowerCase() && pin === LOGIN_PIN){
-      sessionStorage.setItem("prani_logged_in","1");
-      login.style.display = "none";
-      error.textContent = "";
-    } else {
-      error.textContent = "Incorrect name or PIN.";
-    }
-  }
-
-  async function enableBiometric(){
-    error.textContent = "";
-    if(!biometricSupported()){
-      error.textContent = "Fingerprint/biometric login is not supported in this browser.";
-      return;
-    }
+  async function registerBiometric(){
+    if(!supported){ error.textContent="Fingerprint/Face ID is not supported in this browser."; return; }
     try{
-      const userId = randomBytes(16);
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: randomBytes(32),
-          rp: { name: "Prani Expense Tracker", id: RP_ID },
-          user: {
-            id: userId,
-            name: "pranika@local",
-            displayName: "Pranika"
-          },
-          pubKeyCredParams: [
-            {type:"public-key", alg:-7},
-            {type:"public-key", alg:-257}
-          ],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform",
-            residentKey: "required",
-            requireResidentKey: true,
-            userVerification: "required"
-          },
-          timeout: 60000,
-          attestation: "none"
-        }
-      });
-      if(!credential) throw new Error("No credential created");
-      localStorage.setItem(CRED_KEY, JSON.stringify({id:b64url(new Uint8Array(credential.rawId))}));
-      bioBtn.textContent = "Use Fingerprint / Face ID";
-      bioBtn.style.display = "block";
-      alert("Biometric login enabled. Next time, use Fingerprint / Face ID.");
-    }catch(e){
-      console.warn("Biometric setup failed", e);
-      error.textContent = e.name === "NotAllowedError"
-        ? "Biometric setup was cancelled. Try again and approve the fingerprint prompt."
-        : "Could not enable biometric login on this device.";
-    }
+      const userId=randomBytes(16);
+      const cred=await navigator.credentials.create({publicKey:{
+        challenge:randomBytes(32),
+        rp:{name:"Prani Expense Tracker",id:location.hostname},
+        user:{id:userId,name:LOGIN_NAME,displayName:LOGIN_NAME},
+        pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:"platform",residentKey:"preferred",userVerification:"required"},
+        timeout:60000,
+        attestation:"none"
+      }});
+      if(!cred) throw new Error("No credential created");
+      localStorage.setItem(CRED_KEY,JSON.stringify({id:b64(cred.rawId)}));
+      setupBtn.style.display="none"; bioBtn.classList.add("show");
+      error.textContent="Fingerprint / Face ID enabled. Tap the button to test it.";
+    }catch(e){ error.textContent="Biometric setup cancelled or unavailable on this device."; }
   }
-
-  function fromB64url(s){
-    s = s.replace(/-/g,'+').replace(/_/g,'/');
-    while(s.length % 4) s += '=';
-    const bin = atob(s);
-    const a = new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i);
-    return a;
-  }
-
   async function biometricLogin(){
-    error.textContent = "";
-    if(!biometricSupported()){
-      error.textContent = "Fingerprint/biometric login is not supported in this browser.";
-      return;
-    }
-    const saved = storedCredential();
-    if(!saved?.id){
-      error.textContent = "No fingerprint is registered yet. Login with PIN first to enable it.";
-      return;
-    }
+    const saved=stored(); if(!saved){ setupBtn.style.display="block"; error.textContent="First login with PIN, then enable fingerprint / Face ID."; return; }
     try{
-      const assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: randomBytes(32),
-          rpId: RP_ID,
-          allowCredentials: [{type:"public-key", id:fromB64url(saved.id)}],
-          userVerification: "required",
-          timeout: 60000
-        }
-      });
-      if(!assertion) throw new Error("No assertion");
-      sessionStorage.setItem("prani_logged_in","1");
-      login.style.display = "none";
-      error.textContent = "";
-    }catch(e){
-      console.warn("Biometric login failed", e);
-      error.textContent = e.name === "NotAllowedError"
-        ? "Fingerprint verification was cancelled or failed. Try again."
-        : "Fingerprint login failed on this device.";
-    }
+      const assertion=await navigator.credentials.get({publicKey:{
+        challenge:randomBytes(32),
+        allowCredentials:[{type:"public-key",id:bytes(saved.id)}],
+        userVerification:"required",timeout:60000
+      }});
+      if(assertion) unlock();
+    }catch(e){ error.textContent="Fingerprint / Face ID verification failed or was cancelled."; }
   }
-
-  btn.addEventListener("click", unlock);
-  pinInput.addEventListener("keydown", e => { if(e.key === "Enter") unlock(); });
-
-  // Existing credential: show biometric button. First-time setup is available after PIN login.
-  if(biometricSupported()){
-    if(storedCredential()){
-      bioBtn.style.display = "block";
-      bioBtn.textContent = "Use Fingerprint / Face ID";
-      bioBtn.addEventListener("click", biometricLogin);
-    } else {
-      bioBtn.style.display = "block";
-      bioBtn.textContent = "Enable Fingerprint / Face ID";
-      bioBtn.addEventListener("click", async () => {
-        const name = (nameInput.value || "").trim();
-        const pin = (pinInput.value || "").trim();
-        if(name.toLowerCase() === LOGIN_NAME.toLowerCase() && pin === LOGIN_PIN){
-          await enableBiometric();
-        } else {
-          error.textContent = "Enter the correct name and PIN first, then enable fingerprint.";
-        }
-      });
-    }
-  }
-
-  if(sessionStorage.getItem("prani_logged_in") === "1") login.style.display = "none";
+  btn.addEventListener("click",()=>{ if(validPin()){unlock(); if(supported&&!stored()) setupBtn.style.display="block";} else error.textContent="Incorrect name or PIN."; });
+  pinInput.addEventListener("keydown",e=>{if(e.key==="Enter")btn.click();});
+  setupBtn.addEventListener("click",registerBiometric);
+  bioBtn.addEventListener("click",biometricLogin);
+  if(stored()&&supported) bioBtn.classList.add("show");
+  if(sessionStorage.getItem("prani_logged_in")==="1") login.style.display="none";
 })();
 
 /* ---------------- PWA service worker ---------------- */
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  window.addEventListener('load', async () => {
-    try {
-      await navigator.serviceWorker.register('./sw.js', {scope: './'});
-    } catch (e) {
-      console.warn('PWA service worker registration failed:', e);
-    }
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
 
 /* ---------------- init ---------------- */
 loadLocal();
-refreshMonthFilter();
 renderTabs();
 render();
 setSyncStatus('Ready');
