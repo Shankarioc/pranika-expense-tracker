@@ -1,23 +1,28 @@
 {
-  "name": "Pranika Expense Tracker",
-  "short_name": "Pranika",
-  "description": "Pranika Expense Tracker",
+  "name": "Prani Expense Tracker",
+  "short_name": "Prani",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
-  "id": "./",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#F2F2F7",
   "theme_color": "#007AFF",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "./icons/icon-192.png",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./icons/icon-512.png",
+      "src": "icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
