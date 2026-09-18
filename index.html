@@ -791,7 +791,7 @@ document.getElementById('saveBtn').onclick = () => {
   pushExpenseToGoogle(newExpense);
 };
 
-/* ---------------- login gate ---------------- */
+/* ---------------- login gate + biometric unlock ---------------- */
 (function(){
   const LOGIN_NAME = "Pranika";
   const LOGIN_PIN = "2008";
@@ -799,7 +799,29 @@ document.getElementById('saveBtn').onclick = () => {
   const nameInput = document.getElementById("pranikaName");
   const pinInput = document.getElementById("pranikaPin");
   const btn = document.getElementById("pranikaLoginBtn");
+  const bioBtn = document.getElementById("biometricBtn");
   const error = document.getElementById("pranikaLoginError");
+
+  const RP_ID = location.hostname;
+  const CRED_KEY = "prani_webauthn_credential";
+
+  function b64url(bytes){
+    let s = "";
+    bytes.forEach(b => s += String.fromCharCode(b));
+    return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function randomBytes(n){
+    const a = new Uint8Array(n);
+    crypto.getRandomValues(a);
+    return a;
+  }
+  function storedCredential(){
+    try { return JSON.parse(localStorage.getItem(CRED_KEY) || "null"); }
+    catch(e){ return null; }
+  }
+  function biometricSupported(){
+    return !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext);
+  }
 
   function unlock(){
     const name = (nameInput.value || "").trim();
@@ -812,9 +834,118 @@ document.getElementById('saveBtn').onclick = () => {
       error.textContent = "Incorrect name or PIN.";
     }
   }
+
+  async function enableBiometric(){
+    error.textContent = "";
+    if(!biometricSupported()){
+      error.textContent = "Fingerprint/biometric login is not supported in this browser.";
+      return;
+    }
+    try{
+      const userId = randomBytes(16);
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: randomBytes(32),
+          rp: { name: "Prani Expense Tracker", id: RP_ID },
+          user: {
+            id: userId,
+            name: "pranika@local",
+            displayName: "Pranika"
+          },
+          pubKeyCredParams: [
+            {type:"public-key", alg:-7},
+            {type:"public-key", alg:-257}
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            residentKey: "required",
+            requireResidentKey: true,
+            userVerification: "required"
+          },
+          timeout: 60000,
+          attestation: "none"
+        }
+      });
+      if(!credential) throw new Error("No credential created");
+      localStorage.setItem(CRED_KEY, JSON.stringify({id:b64url(new Uint8Array(credential.rawId))}));
+      bioBtn.textContent = "Use Fingerprint / Face ID";
+      bioBtn.style.display = "block";
+      alert("Biometric login enabled. Next time, use Fingerprint / Face ID.");
+    }catch(e){
+      console.warn("Biometric setup failed", e);
+      error.textContent = e.name === "NotAllowedError"
+        ? "Biometric setup was cancelled. Try again and approve the fingerprint prompt."
+        : "Could not enable biometric login on this device.";
+    }
+  }
+
+  function fromB64url(s){
+    s = s.replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length % 4) s += '=';
+    const bin = atob(s);
+    const a = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i);
+    return a;
+  }
+
+  async function biometricLogin(){
+    error.textContent = "";
+    if(!biometricSupported()){
+      error.textContent = "Fingerprint/biometric login is not supported in this browser.";
+      return;
+    }
+    const saved = storedCredential();
+    if(!saved?.id){
+      error.textContent = "No fingerprint is registered yet. Login with PIN first to enable it.";
+      return;
+    }
+    try{
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: randomBytes(32),
+          rpId: RP_ID,
+          allowCredentials: [{type:"public-key", id:fromB64url(saved.id)}],
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+      if(!assertion) throw new Error("No assertion");
+      sessionStorage.setItem("prani_logged_in","1");
+      login.style.display = "none";
+      error.textContent = "";
+    }catch(e){
+      console.warn("Biometric login failed", e);
+      error.textContent = e.name === "NotAllowedError"
+        ? "Fingerprint verification was cancelled or failed. Try again."
+        : "Fingerprint login failed on this device.";
+    }
+  }
+
   btn.addEventListener("click", unlock);
   pinInput.addEventListener("keydown", e => { if(e.key === "Enter") unlock(); });
-  if(sessionStorage.getItem("prani_logged_in") === "1"){ login.style.display = "none"; }
+
+  // Existing credential: show biometric button. First-time setup is available after PIN login.
+  if(biometricSupported()){
+    if(storedCredential()){
+      bioBtn.style.display = "block";
+      bioBtn.textContent = "Use Fingerprint / Face ID";
+      bioBtn.addEventListener("click", biometricLogin);
+    } else {
+      bioBtn.style.display = "block";
+      bioBtn.textContent = "Enable Fingerprint / Face ID";
+      bioBtn.addEventListener("click", async () => {
+        const name = (nameInput.value || "").trim();
+        const pin = (pinInput.value || "").trim();
+        if(name.toLowerCase() === LOGIN_NAME.toLowerCase() && pin === LOGIN_PIN){
+          await enableBiometric();
+        } else {
+          error.textContent = "Enter the correct name and PIN first, then enable fingerprint.";
+        }
+      });
+    }
+  }
+
+  if(sessionStorage.getItem("prani_logged_in") === "1") login.style.display = "none";
 })();
 
 /* ---------------- PWA service worker ---------------- */
