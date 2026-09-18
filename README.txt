@@ -1,21 +1,21 @@
-# Pranika Expense Tracker — Mobile App
+PRANI EXPENSE TRACKER — PWA
 
-## Recommended deployment
-Host this folder on an HTTPS web host (for example GitHub Pages). Open the URL on Android Chrome and choose:
-Menu -> Add to Home screen / Install app.
+Files:
+- index.html
+- manifest.webmanifest
+- sw.js
+- icons/icon-192.png
+- icons/icon-512.png
 
-## Automatic code updates
-The service worker uses a network-first strategy. When you publish a new index.html,
-the installed PWA fetches the new code when online and updates its cache. The next
-load uses the latest published version.
+IMPORTANT:
+A PWA must be served from HTTPS (or localhost) to install.
+Opening index.html directly with file:// will not provide normal PWA installation.
 
-For a stronger release workflow, change APP_VERSION in sw.js for each release:
-APP_VERSION = "pranika-v2", "pranika-v3", etc.
+For Android Chrome:
+1. Upload this folder to an HTTPS web host.
+2. Open the HTTPS address in Chrome.
+3. Use the browser's "Install app" / "Add to Home screen" option.
+4. The app opens in standalone mode.
 
-## Important
-Google Sheets/Drive synchronization still uses the Google Apps Script Web App URL
-already configured in the HTML. Keep that backend deployed and accessible.
-
-## Data safety
-Keep Google Sheets as the cloud data source and Google Drive as backup. Do not rely
-only on browser storage.
+The existing expense tracker UI/data logic is preserved; this package adds the PWA manifest,
+service worker, install prompt, and app icons.
