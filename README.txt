@@ -1,27 +1,17 @@
-PRANI EXPENSE TRACKER — PWA UPDATE
+PRANI EXPENSE TRACKER - PWA INSTALL FIX
 
-Files included:
+Upload ALL files/folders from this ZIP to the ROOT of the GitHub repository:
 - index.html
-- manifest.webmanifest
+- manifest.json
 - sw.js
-- icons/icon-192.png
-- icons/icon-384.png
-- icons/icon-512.png
+- icons/
 
-This update fixes the PWA installation package:
-1. Adds valid 192px/384px/512px PNG app icons.
-2. Adds the icons to the web app manifest.
-3. Adds scope and id to the manifest.
-4. Fixes the service worker cache to use index.html.
-5. Updates the service-worker cache version so GitHub Pages can refresh the old cache.
+Do NOT upload the ZIP itself.
 
-GitHub upload:
-Upload all files/folders from this ZIP to the repository root and commit directly to main.
-Then wait for GitHub Pages to redeploy.
+After GitHub Pages deploys:
+1. Open the Pages URL in Chrome.
+2. Refresh once.
+3. Close the old tab and reopen the URL.
+4. Chrome menu (⋮) -> Install app.
 
-After deployment on Android Chrome:
-- Open the site.
-- Refresh once.
-- Open Chrome menu (⋮).
-- Select "Install app" if shown.
-- If the old "This app cannot be installed" message remains, close the old tab/site and reopen the deployed URL after the new GitHub Pages deployment finishes.
+This version uses manifest.json, absolute GitHub Pages paths, and a versioned service worker.
