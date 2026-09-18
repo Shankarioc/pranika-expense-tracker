@@ -758,24 +758,48 @@ document.getElementById('saveBtn').onclick = () => {
     return a;
   }
 
+  async function platformAuthenticatorAvailable(){
+    try {
+      return !!(
+        window.PublicKeyCredential &&
+        PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable &&
+        await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   function hasBiometric(){
     return !!localStorage.getItem(BIO_KEY);
   }
 
-  function updateBioUI(){
-    if(supportsWebAuthn && isSecure){
-      bioBtn.style.display = hasBiometric() ? "block" : "none";
-      enableBioBtn.style.display = hasBiometric() ? "none" : "block";
-      bioStatus.textContent = hasBiometric()
-        ? "Biometric login is enabled on this device."
-        : "Login with PIN once, then enable biometric login.";
-    } else {
+  async function updateBioUI(){
+    if(!supportsWebAuthn || !isSecure){
       bioBtn.style.display = "none";
       enableBioBtn.style.display = "none";
-      bioStatus.textContent = location.protocol === "file:"
-        ? "Fingerprint requires HTTPS. Open the hosted app (for example GitHub Pages)."
-        : "This browser/device does not support WebAuthn biometrics.";
+      bioStatus.textContent =
+        location.protocol === "file:"
+          ? "Fingerprint requires HTTPS. Open your GitHub Pages HTTPS link."
+          : "WebAuthn is not supported by this browser.";
+      return;
     }
+
+    const platformAvailable = await platformAuthenticatorAvailable();
+
+    if(!platformAvailable){
+      bioBtn.style.display = "none";
+      enableBioBtn.style.display = "none";
+      bioStatus.textContent =
+        "No fingerprint/Face ID/Windows Hello authenticator is available on this device.";
+      return;
+    }
+
+    bioBtn.style.display = hasBiometric() ? "block" : "none";
+    enableBioBtn.style.display = hasBiometric() ? "none" : "block";
+    bioStatus.textContent = hasBiometric()
+      ? "Biometric login is enabled on this device."
+      : "Login with PIN once, then enable Fingerprint / Face ID.";
   }
 
   function unlock(){
@@ -816,7 +840,6 @@ document.getElementById('saveBtn').onclick = () => {
           ],
           authenticatorSelection: {
             authenticatorAttachment: "platform",
-            residentKey: "preferred",
             userVerification: "required"
           },
           timeout: 60000,
@@ -901,6 +924,7 @@ document.getElementById('saveBtn').onclick = () => {
   } else {
     updateBioUI();
   }
+  setTimeout(updateBioUI, 500);
 })();
 /* ---------------- PWA service worker ---------------- */
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
